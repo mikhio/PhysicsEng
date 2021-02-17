@@ -47,18 +47,27 @@ struct Ball {
 
 
 float getLength(sf::Vector2f p1, sf::Vector2f p2) { return sqrt( pow((p2.x - p1.x), 2) + pow((p2.y - p1.y), 2)); }
+float dot(sf::Vector2f v1, sf::Vector2f v2) { return v1.x * v2.x + v1.y * v2.y; }
+sf::Vector2f pow(sf::Vector2f v, int n) { return sf::Vector2f(pow(v.x, n), pow(v.y, n)); }
 
-bool getCollison(sf::Vector2f *point, sf::Vector2f c, sf::Vector2f p1, sf::Vector2f p2, float rad) {
-    float len = getLength(p1, p2);
-    float dot = ( (p2.x-p1.x)*(c.x-p1.x) + (p2.y-p1.y)*(c.y-p1.y) ) / pow(len, 2);
-    float closeX = p1.x + dot * (p2.x - p1.x);
-    float closeY = p1.y + dot * (p2.y - p1.y);
+void getCollison(sf::Vector2f *points, bool *collFlags, sf::Vector2f c, Line *lines, float rad, int linesSize) {
+    for (int i = 0; i < linesSize; ++i) {
+        bool isCollide = true;
 
-    if (pow((c.x - closeX), 2) + pow((c.y - closeY), 2) > pow(rad, 2)) return false;
-    
-    *point = sf::Vector2f(closeX, closeY);
+        sf::Vector2f p1 = lines[i].p1;
+        sf::Vector2f p2 = lines[i].p2;
 
-    return true;
+        float len = getLength(p1, p2);
+        float dot = ( (p2.x-p1.x)*(c.x-p1.x) + (p2.y-p1.y)*(c.y-p1.y) ) / pow(len, 2);
+        float closeX = p1.x + dot * (p2.x - p1.x);
+        float closeY = p1.y + dot * (p2.y - p1.y);
+
+        if (!((closeX >= p1.x && closeX <= p2.x) || (closeX >= p2.x && closeX <= p1.x))) isCollide = false;
+        if (pow((c.x - closeX), 2) + pow((c.y - closeY), 2) > pow(rad, 2)) isCollide = false;
+
+        points[i] = sf::Vector2f(closeX, closeY);
+        collFlags[i] = isCollide;
+    }
 }
 
 
@@ -69,17 +78,22 @@ int main() {
     window.setFramerateLimit(60);
 
     // Circle 
-    Ball ball(sf::Vector2f(700.f, 270.f), 100.f);
+    Ball ball(sf::Vector2f(500.f, 270.f), 100.f);
 
     // Line
-    Line lineData(sf::Vector2f(500.f, 900.f), sf::Vector2f(1000.f, 1000.f));
+    Line lines[] = {
+        Line(sf::Vector2f(0.f, 0.f), sf::Vector2f(1500.f, 0.f)),
+        Line(sf::Vector2f(0.f, 0.f), sf::Vector2f(0.f, 1500.f)),
+        Line(sf::Vector2f(1500.f, 0.f), sf::Vector2f(1500.f, 1500.f)),
+        Line(sf::Vector2f(0.f, 1500.f), sf::Vector2f(1500.f, 1500.f)),
+
+        Line(sf::Vector2f(200.f, 800.f), sf::Vector2f(600.f, 1000.f)),
+        Line(sf::Vector2f(1300.f, 800.f), sf::Vector2f(700.f, 1000.f)),
+    };
 
     // Circle and line collison
-    sf::Vector2f point;
-    bool isCollide;
-    sf::CircleShape pointShape1(10.f);
-    pointShape1.setFillColor(sf::Color::Red);
-    pointShape1.setOrigin(10.f, 10.f);
+    sf::Vector2f points[sizeof(lines)/sizeof(lines[0])];
+    bool collFlags[sizeof(lines)/sizeof(lines[0])];
 
     while (window.isOpen()) {
         // Check event
@@ -90,30 +104,38 @@ int main() {
         }
         ball.acc = sf::Vector2f(0.f, GRAVITY);
 
-        isCollide = getCollison(&point, ball.pos, lineData.p1, lineData.p2, ball.rad);
+        getCollison(points, collFlags, ball.pos, lines, ball.rad, sizeof(lines)/sizeof(lines[0]));
 
-        if (isCollide) {
-            sf::Vector2f bounce(ball.pos.x - point.x, ball.pos.y - point.y);
-            bounce /= getLength(ball.pos, point);
-            bounce *= ball.rad - getLength(ball.pos, point);
+        for (int i = 0; i < sizeof(lines)/sizeof(lines[0]); ++i) {
+            if (collFlags[i]) {
+                sf::Vector2f point = points[i];
 
-            ball.acc += bounce;
+                sf::Vector2f bounce(ball.pos.x - point.x, ball.pos.y - point.y);
+
+                bounce /= getLength(ball.pos, point);
+                ball.vel = 0.8f * dot(-bounce, ball.vel) * -bounce + ball.vel - dot(-bounce, ball.vel) * -bounce;
+                bounce *= (ball.rad - getLength(ball.pos, point));
+
+                ball.acc += bounce;
+            }
+
         }
 
-        pointShape1.setPosition(point);
+
+        sf::Vector2f envResist = pow(ball.vel, 2) * 0.01f;
+
+        //ball.acc -= envResist;
 
         ball.vel += ball.acc;
+        //ball.vel = (getLength(sf::Vector2f(0.f, 0.f), ball.vel) <= 10f) ? sf::Vector2f(0.f, 0.f) : ball.vel;
         ball.move(ball.vel);
+
 
         // Clearing, updating and drawing
         window.clear(sf::Color(0, 0, 0));
         
         window.draw(ball.shape);
-        window.draw(lineData.lineShape, 2, sf::Lines);
-
-        if (isCollide) {
-            window.draw(pointShape1);
-        }
+        for (int i = 0; i < sizeof(lines)/sizeof(lines[0]); ++i) window.draw(lines[i].lineShape, 2, sf::Lines);
 
         window.display();
     }

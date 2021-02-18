@@ -66,6 +66,17 @@ void getCollison(sf::Vector2f *points, bool *collFlags, sf::Vector2f c, Line *li
         if (pow((c.x - closeX), 2) + pow((c.y - closeY), 2) > pow(rad, 2)) isCollide = false;
 
         points[i] = sf::Vector2f(closeX, closeY);
+
+        if (!isCollide) {
+            if (getLength(c, p1) <= rad) {
+                isCollide = true;
+                points[i] = p1;
+            } else if (getLength(c, p2) <= rad) {
+                isCollide = true;
+                points[i] = p2;
+            }
+        }
+
         collFlags[i] = isCollide;
     }
 }
